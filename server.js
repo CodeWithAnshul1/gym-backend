@@ -17,7 +17,7 @@ mongoose.connect(MONGO_URI)
 .catch( er => console.log(er));
 
 app.use(cors({
-  origin : "http://stalwart-axolotl-862987.netlify.app",
+  origin : "https://stalwart-axolotl-862987.netlify.app",
   methods :["GET" , "POST" , "PUT", "DELETE"],
 }));
 app.use(express.json());
