@@ -8,13 +8,18 @@ const mongoose = require("mongoose");
 const Employee = require("./models/Employee");
 const Users = require("./models/Users");
 const SECRET = process.env.SECRET;
+const MONGO_URI =process.env.MONGO_URI
+const PORT = process.env.PORT || 5000;
 const app = express();
 
-mongoose.connect("mongodb+srv://Anshul:Anshul%40123@enmhub-cluster.ca743ae.mongodb.net/emphub")
+mongoose.connect(MONGO_URI)
 .then(() => console.log("connect mongodb"))
 .catch( er => console.log(er));
 
-app.use(cors());
+app.use(cors({
+  origin : "http://stalwart-axolotl-862987.netlify.app",
+  methods :["GET" , "POST" , "PUT", "DELETE"],
+}));
 app.use(express.json());
 
 
@@ -189,6 +194,6 @@ app.post("/search", auth, async (req, res) => {
   }
 });
 
-app.listen(5000 , () => {
+app.listen(PORT , () => {
     console.log("server is start");
 })
