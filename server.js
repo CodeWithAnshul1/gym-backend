@@ -1,45 +1,49 @@
 require("dotenv").config();
 const express = require("express");
-const cors= require("cors");
+const cors = require("cors");
 const jwt = require("jsonwebtoken");
-const bcrypt =require("bcrypt");
-const auth =require("./Middelware");
+const bcrypt = require("bcrypt");
+const auth = require("./Middelware");
 const mongoose = require("mongoose");
 const Employee = require("./models/Employee");
 const Users = require("./models/Users");
+
 const SECRET = process.env.SECRET;
-const MONGO_URI =process.env.MONGO_URI;
+const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5000;
+
 const app = express();
 
-mongoose.connect(MONGO_URI)
-.then(() => console.log("connect mongodb"))
-.catch( er => console.log(er));
-
+// ✅ Middleware
 app.use(cors({
-  origin : "https://stalwart-axolotl-862987.netlify.app",
-  methods :["GET" , "POST" , "PUT", "DELETE"],
+  origin: "https://stalwart-axolotl-862987.netlify.app",
+  methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 app.use(express.json());
 
 
+// ✅ Test route (optional but useful)
+app.get("/", (req, res) => {
+  res.send("Server is running");
+});
 
+
+// ================= ROUTES =================
+
+// LOGIN
 app.post("/login", async (req, res) => {
-
   try {
-    const {email , password} = req.body;
+    const { email, password } = req.body;
 
     const user = await Users.findOne({ email });
 
-    if (!user) {
-        console.log("user not found ");
+    if (!user || !user.password) {
       return res.json({ message: "user not found" });
     }
 
     const match = await bcrypt.compare(password, user.password);
 
     if (!match) {
-        console.log("enter a valid password");
       return res.json({ message: "enter valid username or password" });
     }
 
@@ -48,121 +52,104 @@ app.post("/login", async (req, res) => {
     res.json({ token });
 
   } catch (err) {
-
+    console.log(err);
     res.status(500).json({ message: "internal server error" });
-
   }
-
 });
 
-app.post("/create",async(req ,res) =>{
-    // console.log(req.body);
-    const { email , password} =req.body;
 
-    const check = await  Users.findOne({email});
+// CREATE USER
+app.post("/create", async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-    if(check) {
-        console.log("user already exist");
-       return  res.json({message : "User Allready exist"});
+    const check = await Users.findOne({ email });
+
+    if (check) {
+      return res.json({ message: "User already exist" });
     }
 
-    const hashedpass = await bcrypt.hash(password ,10);
+    const hashedpass = await bcrypt.hash(password, 10);
 
     const user = new Users({
-        email ,
-        password: hashedpass,
-    })
- 
-    
-        
-    await user.save();
-
-    res.json({message : "  New User Create successfully"});
-
-})
-
-// app.use("/login",(req,res,next) =>{
-//     const email = req.body.email;
-//     const pass = req.body.pass;
-//     const token = jwt.sign({email}, SECRET , {expressIn : "1h"});
-//     res.json(token);
-//     next();
-// } )
-
-app.get("/users" ,auth ,async(req ,res) => {
-    // res.send("server is working fine ");
-    const page = parseInt(req.query.page ||1);
-    const limit = parseInt(req.query.limit ||5) ;
-    const total = await Employee.countDocuments();
-    const totalPages = Math.ceil(total / limit);
-
-    const users = await Employee.find()
-    .skip((page-1)*limit)
-    .limit(limit);
-
-    res.json({
-        totalPages,
-        users,
+      email,
+      password: hashedpass,
     });
 
+    await user.save();
 
+    res.json({ message: "New User Created successfully" });
 
-    // const  data =await Employee.find({});
-    // res.json(data);
-
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "error creating user" });
+  }
 });
 
 
-app.post("/" , auth , async(req , res) => {
-    // console.log(req.body);
-    // res.send(req.body);
-    // users.push(req.body);
-    const emp = new Employee (req.body);
-    await emp.save();
-    res.json({message : "user add successfully"});
-    // res.send("User add succesfully");
+// USERS (Protected)
+app.get("/users", auth, async (req, res) => {
+  const page = parseInt(req.query.page || 1);
+  const limit = parseInt(req.query.limit || 5);
+
+  const total = await Employee.countDocuments();
+  const totalPages = Math.ceil(total / limit);
+
+  const users = await Employee.find()
+    .skip((page - 1) * limit)
+    .limit(limit);
+
+  res.json({ totalPages, users });
 });
 
-app.put("/user/:id", auth ,async(req ,res) => {
-  
-    try{
-        const updateusr = await Employee.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-             {new :true}
-        );
-        if(!updateusr){
-            return res.status(404).json({message : "useer not found"});
-        
-        }
-        res.json(updateusr);
 
-    }catch(err){
-        res.status(500).json({message :"error in user updare"});
+// ADD USER
+app.post("/", auth, async (req, res) => {
+  const emp = new Employee(req.body);
+  await emp.save();
+  res.json({ message: "user add successfully" });
+});
+
+
+// UPDATE
+app.put("/user/:id", auth, async (req, res) => {
+  try {
+    const updateusr = await Employee.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+
+    if (!updateusr) {
+      return res.status(404).json({ message: "user not found" });
     }
 
+    res.json(updateusr);
 
+  } catch (err) {
+    res.status(500).json({ message: "error in update" });
+  }
 });
 
-app.delete("/delete/:id" , auth ,async(req ,res) => {
-    try{
-        const id= req.params.id;
-        
 
-        const Deleteusr = await Employee.findByIdAndDelete(id);
-        if(!Deleteusr){
-            return res.json({message : "user not found"})
-        }
-        res.json({message :"user  delete successfully "})
+// DELETE
+app.delete("/delete/:id", auth, async (req, res) => {
+  try {
+    const Deleteusr = await Employee.findByIdAndDelete(req.params.id);
 
-    }
-    catch(err){
-        res.status(501).json("server error");
-
+    if (!Deleteusr) {
+      return res.json({ message: "user not found" });
     }
 
+    res.json({ message: "user delete successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "server error" });
+  }
 });
 
+
+// SEARCH
 app.post("/search", auth, async (req, res) => {
   try {
     const search = req.body.search || "";
@@ -184,16 +171,28 @@ app.post("/search", auth, async (req, res) => {
       return res.json({ message: "User not found" });
     }
 
-    res.json({
-      users,
-      totalPages
-    });
+    res.json({ users, totalPages });
 
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
 });
 
-app.listen(PORT , () => {
-    console.log("server is start");
-})
+
+// ================= DB + SERVER START =================
+
+const startServer = async () => {
+  try {
+    await mongoose.connect(MONGO_URI);
+    console.log("connect mongodb");
+
+    app.listen(PORT, () => {
+      console.log("server is start");
+    });
+
+  } catch (err) {
+    console.log("MongoDB connection error:", err);
+  }
+};
+
+startServer();
