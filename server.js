@@ -34,8 +34,9 @@ app.get("/", (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+     const emailNormalized =email.trim().toLowerCase();
 
-    const user = await Users.findOne({ email });
+    const user = await Users.findOne({ email:emailNormalized });
 
     if (!user || !user.password) {
       return res.json({ message: "user not found" });
@@ -47,7 +48,7 @@ app.post("/login", async (req, res) => {
       return res.json({ message: "enter valid username or password" });
     }
 
-    const token = jwt.sign({ email }, SECRET, { expiresIn: "2d" });
+    const token = jwt.sign({ email :emailNormalized }, SECRET, { expiresIn: "2d" });
 
     res.json({ token });
 
@@ -62,17 +63,24 @@ app.post("/login", async (req, res) => {
 app.post("/create", async (req, res) => {
   try {
     const { email, password } = req.body;
+    const emailNormalized = email.trim().toLowerCase();
 
-    const check = await Users.findOne({ email });
+    const check = await Users.findOne({ email: emailNormalized });
 
     if (check) {
-      return res.json({ message: "User already exist" });
-    }
+    return res.json({ message: "User already exist" });
+}
+
+    // const check = await Users.findOne({ email });
+
+    // if (check) {
+    //   return res.json({ message: "User already exist" });
+    // }
 
     const hashedpass = await bcrypt.hash(password, 10);
 
     const user = new Users({
-      email,
+      email: emailNormalized,
       password: hashedpass,
     });
 
