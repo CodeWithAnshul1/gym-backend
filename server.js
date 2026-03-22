@@ -8,7 +8,7 @@ const mongoose = require("mongoose");
 const Employee = require("./models/Employee");
 const Users = require("./models/Users");
 const SECRET = process.env.SECRET;
-const MONGO_URI =process.env.MONGO_URI
+const MONGO_URI =process.env.MONGO_URI;
 const PORT = process.env.PORT || 5000;
 const app = express();
 
@@ -57,7 +57,7 @@ app.post("/login", async (req, res) => {
 
 app.post("/create",async(req ,res) =>{
     // console.log(req.body);
-    const { email , pass} =req.body;
+    const { email , password} =req.body;
 
     const check = await  Users.findOne({email});
 
@@ -66,7 +66,7 @@ app.post("/create",async(req ,res) =>{
        return  res.json({message : "User Allready exist"});
     }
 
-    const hashedpass = await bcrypt.hash(pass ,10);
+    const hashedpass = await bcrypt.hash(password ,10);
 
     const user = new Users({
         email ,
