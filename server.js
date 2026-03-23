@@ -16,8 +16,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  origin: "https://stalwart-axolotl-862987.netlify.app",
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  // origin: "https://stalwart-axolotl-862987.netlify.app",
+  // methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 app.use(express.json());
 
@@ -34,7 +34,7 @@ app.get("/", (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-     const emailNormalized =email.trim().toLowerCase();
+     const emailNormalized =email.trim();
 
     const user = await Users.findOne({ email:emailNormalized });
 
@@ -63,12 +63,12 @@ app.post("/login", async (req, res) => {
 app.post("/create", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const emailNormalized = email.trim().toLowerCase();
+    const emailNormalized = email.trim();
 
     const check = await Users.findOne({ email: emailNormalized });
 
     if (check) {
-    return res.json({ message: "User already exist" });
+    return res.status(409).json({ message: "User already exist" });
 }
 
     // const check = await Users.findOne({ email });
@@ -101,7 +101,7 @@ app.get("/users", auth, async (req, res) => {
   const limit = parseInt(req.query.limit || 5);
 
   const total = await Employee.countDocuments();
-  const totalPages = Math.ceil(total / limit);
+  const totalPages = Math.ceil(total/limit);
 
   const users = await Employee.find()
     .skip((page - 1) * limit)
