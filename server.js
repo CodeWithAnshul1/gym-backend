@@ -16,8 +16,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  // origin: "https://stalwart-axolotl-862987.netlify.app",
-  // methods: ["GET", "POST", "PUT", "DELETE"],
+  origin: "https://stalwart-axolotl-862987.netlify.app",
+  methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 app.use(express.json());
 
@@ -26,6 +26,8 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
+
+app
 
 
 // ================= ROUTES =================
@@ -49,8 +51,9 @@ app.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign({ email :emailNormalized }, SECRET, { expiresIn: "2d" });
+    // console.log(user.role);
 
-    res.json({ token });
+    res.json({ token ,role:user.role  });
 
   } catch (err) {
     console.log(err);
@@ -70,18 +73,12 @@ app.post("/create", async (req, res) => {
     if (check) {
     return res.status(409).json({ message: "User already exist" });
 }
-
-    // const check = await Users.findOne({ email });
-
-    // if (check) {
-    //   return res.json({ message: "User already exist" });
-    // }
-
     const hashedpass = await bcrypt.hash(password, 10);
 
     const user = new Users({
       email: emailNormalized,
       password: hashedpass,
+      role:"user",
     });
 
     await user.save();
