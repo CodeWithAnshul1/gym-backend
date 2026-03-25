@@ -3,7 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-const auth = require("./Middelware");
+const auth = require("./middleware/Middelware");
 const mongoose = require("mongoose");
 const Employee = require("./models/Employee");
 const Users = require("./models/Users");
@@ -16,9 +16,10 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  origin: "https://stalwart-axolotl-862987.netlify.app",
-  methods: ["GET", "POST", "PUT", "DELETE"],
+  // origin: "https://stalwart-axolotl-862987.netlify.app",
+  // methods: ["GET", "POST", "PUT", "DELETE"],
 }));
+
 app.use(express.json());
 
 
@@ -110,7 +111,8 @@ app.get("/users", auth, async (req, res) => {
 
 // ADD USER
 app.post("/", auth, async (req, res) => {
-  const emp = new Employee(req.body);
+ const { name, number, add } = req.body;
+const emp = new Employee({ name, number, add });
   await emp.save();
   res.json({ message: "user add successfully" });
 });
