@@ -4,6 +4,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const auth = require("./middleware/Middelware");
+const check = require("./middleware/SuperAuth");
 const mongoose = require("mongoose");
 const Employee = require("./models/Employee");
 const Users = require("./models/Users");
@@ -51,7 +52,7 @@ app.post("/login", async (req, res) => {
       return res.json({ message: "enter valid username or password" });
     }
 
-    const token = jwt.sign({ email :emailNormalized }, SECRET, { expiresIn: "2d" });
+    const token = jwt.sign({id:user._id ,role:user.role }, SECRET, { expiresIn: "2d" });
     // console.log(user.role);
 
     res.json({ token ,role:user.role  });
@@ -94,7 +95,7 @@ app.post("/create", async (req, res) => {
 
 
 // USERS (Protected)
-app.get("/users", auth, async (req, res) => {
+app.get("/clints", auth, async (req, res) => {
   const page = parseInt(req.query.page || 1);
   const limit = parseInt(req.query.limit || 5);
 
@@ -107,10 +108,22 @@ app.get("/users", auth, async (req, res) => {
 
   res.json({ totalPages, users });
 });
+app.get("/users", auth,check("admin" , "superadmin") ,async (req, res) => {
+  const page = parseInt(req.query.page || 1);
+  const limit = parseInt(req.query.limit || 5);
 
+  const total = await Users.countDocuments();
+  const totalPages = Math.ceil(total/limit);
+
+  const users = await Users.find()
+    .skip((page - 1) * limit)
+    .limit(limit);
+
+  res.json({ totalPages, users });
+});
 
 // ADD USER
-app.post("/", auth, async (req, res) => {
+app.post("/", auth, check("admin"),async (req, res) => {
  const { name, number, add } = req.body;
 const emp = new Employee({ name, number, add });
   await emp.save();
@@ -119,7 +132,7 @@ const emp = new Employee({ name, number, add });
 
 
 // UPDATE
-app.put("/user/:id", auth, async (req, res) => {
+app.put("/clint/:id", auth, async (req, res) => {
   try {
     const updateusr = await Employee.findByIdAndUpdate(
       req.params.id,
@@ -182,6 +195,90 @@ app.post("/search", auth, async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ message: "Server error" });
+  }
+}); 
+                 // user search
+
+app.post("/usrsearch", auth, async (req, res) => {
+  try {
+    let { search } = req.body;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 5;
+
+    // ✅ prevent empty search
+    // if (!search || search.trim() === "") {
+    //   return res.status(400).json({ msg: "Search is required" });
+    // }
+
+    // escape regex (IMPORTANT)
+    const escapeRegex = (text) => {
+      return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    };
+
+    const safeSearch = escapeRegex(search.trim());
+
+    //  query (email + name optional)
+    const query = {
+      $or: [
+        { email: { $regex: safeSearch, $options: "i" } },
+        // { name: { $regex: safeSearch, $options: "i" } }
+      ]
+    };
+
+    const total = await Users.countDocuments(query);
+    const totalPages = Math.ceil(total / limit);
+
+    const users = await Users.find(query)
+      .select("-password") // 🔥 hide password
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // ✅ consistent response
+    if (users.length === 0) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    res.json({
+      users,
+      totalPages,
+      // currentPage: page
+    });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ msg: "Server error" });
+  }
+});
+
+/*CHANGE ROLE */
+app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if(req.user.id===id){
+       return res.json({msg :"you can not change our role "})
+    }
+
+    const user = await Users.findById(id);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    // 🔥 toggle role
+    if (user.role === "user") {
+      user.role = "admin";
+    } else if (user.role === "admin") {
+      user.role = "user";
+    }
+
+    await user.save();
+
+    res.json({ msg: "Role updated", role: user.role });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ msg: "Server error" });
   }
 });
 
