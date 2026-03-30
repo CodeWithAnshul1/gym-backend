@@ -4,7 +4,7 @@ const Users = require("../models/Users");
 
 async function auth(req, res, next) {
   const token = req.cookies.token;
-  console.log(req.cookies.token);
+  //  console.log(req.cookies.token);
 
   if (!token) {
     return res.status(401).json({ message: "token missing" });

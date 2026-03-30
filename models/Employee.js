@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const employeeSchema = new mongoose.Schema({
     name: String,
     number: {type :String , match: /^[0-9]{10}$/,},
-    add : String,
+    add: String,
     
 }, {timestamps :true ,}
 );

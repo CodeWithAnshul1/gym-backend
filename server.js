@@ -1,5 +1,6 @@
 require("dotenv").config();
 const express = require("express");
+
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
@@ -15,14 +16,15 @@ const PORT = process.env.PORT || 5000;
 const cookieParser = require("cookie-parser");
 
 const app = express();
+app.set("trust proxy", 1);
 app.use(cookieParser());
 
 // ✅ Middleware
 app.use(cors({
+  credentials :true,
   // origin : "http://localhost:5173",
   origin: "https://stalwart-axolotl-862987.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials :true
 }));
 
 app.use(express.json());
@@ -58,8 +60,8 @@ app.post("/login", async (req, res) => {
     // console.log(user.role);
     res.cookie("token",token,{
       httpOnly :true,
-      secure :false,
-      sameSite :"lax",
+      secure :true,
+      sameSite :"none",
     });
 
     res.json({role:user.role ,message:"" });
@@ -292,7 +294,12 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
 });
 
 app.post("/logout" ,(req ,res)=>{
-  res.clearCookie("token");
+  res.clearCookie("token", {
+  httpOnly: true,
+  secure: true,
+  sameSite: "none",
+});
+
   res.json({message : "logged out successfully"});
 
 });
