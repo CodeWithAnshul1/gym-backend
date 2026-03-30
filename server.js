@@ -12,11 +12,15 @@ const Users = require("./models/Users");
 const SECRET = process.env.SECRET;
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5000;
+const cookieParser = require("cookie-parser");
 
 const app = express();
+app.use(cookieParser());
 
 // ✅ Middleware
 app.use(cors({
+  origin : "http://localhost:5173",
+  credentials :true
   // origin: "https://stalwart-axolotl-862987.netlify.app",
   // methods: ["GET", "POST", "PUT", "DELETE"],
 }));
@@ -28,8 +32,6 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
-
-app
 
 
 // ================= ROUTES =================
@@ -52,10 +54,15 @@ app.post("/login", async (req, res) => {
       return res.json({ message: "enter valid username or password" });
     }
 
-    const token = jwt.sign({id:user._id ,role:user.role }, SECRET, { expiresIn: "2d" });
+    const token = jwt.sign({id:user._id  }, SECRET, { expiresIn: "2d" });
     // console.log(user.role);
+    res.cookie("token",token,{
+      httpOnly :true,
+      secure :false,
+      sameSite :"lax",
+    });
 
-    res.json({ token ,role:user.role  });
+    res.json({role:user.role ,message:"" });
 
   } catch (err) {
     console.log(err);
@@ -70,9 +77,9 @@ app.post("/create", async (req, res) => {
     const { email, password } = req.body;
     const emailNormalized = email.trim();
 
-    const check = await Users.findOne({ email: emailNormalized });
+    const exist = await Users.findOne({ email: emailNormalized });
 
-    if (check) {
+    if (exist) {
     return res.status(409).json({ message: "User already exist" });
 }
     const hashedpass = await bcrypt.hash(password, 10);
@@ -108,14 +115,15 @@ app.get("/clints", auth, async (req, res) => {
 
   res.json({ totalPages, users });
 });
-app.get("/users", auth,check("admin" , "superadmin") ,async (req, res) => {
-  const page = parseInt(req.query.page || 1);
-  const limit = parseInt(req.query.limit || 5);
+app.get("/users", auth,check("admin" ,"superadmin") ,async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+const limit = parseInt(req.query.limit) || 5;
+// console.log("user route hit");
 
   const total = await Users.countDocuments();
   const totalPages = Math.ceil(total/limit);
 
-  const users = await Users.find()
+  const users = await Users.find().select("-password")
     .skip((page - 1) * limit)
     .limit(limit);
 
@@ -123,9 +131,9 @@ app.get("/users", auth,check("admin" , "superadmin") ,async (req, res) => {
 });
 
 // ADD USER
-app.post("/", auth, check("admin"),async (req, res) => {
+app.post("/", auth, check("superadmin","admin"),async (req, res) => {
  const { name, number, add } = req.body;
-const emp = new Employee({ name, number, add });
+const emp = await new Employee({ name, number, add });
   await emp.save();
   res.json({ message: "user add successfully" });
 });
@@ -153,7 +161,7 @@ app.put("/clint/:id", auth, async (req, res) => {
 
 
 // DELETE
-app.delete("/delete/:id", auth, async (req, res) => {
+app.delete("/delete/:id", auth,check("superadmin"),async (req, res) => {
   try {
     const Deleteusr = await Employee.findByIdAndDelete(req.params.id);
 
@@ -172,7 +180,8 @@ app.delete("/delete/:id", auth, async (req, res) => {
 // SEARCH
 app.post("/search", auth, async (req, res) => {
   try {
-    const search = req.body.search || "";
+    const search = req.body.search ;
+    serch =search || "";
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
 
@@ -201,14 +210,14 @@ app.post("/search", auth, async (req, res) => {
 
 app.post("/usrsearch", auth, async (req, res) => {
   try {
-    let { search } = req.body;
+    let { search } = req.body||"";
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
 
     // ✅ prevent empty search
     // if (!search || search.trim() === "") {
-    //   return res.status(400).json({ msg: "Search is required" });
+    //   return res.status(400).json({ message: "Search is required" });
     // }
 
     // escape regex (IMPORTANT)
@@ -236,7 +245,7 @@ app.post("/usrsearch", auth, async (req, res) => {
 
     // ✅ consistent response
     if (users.length === 0) {
-      return res.status(404).json({ msg: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     res.json({
@@ -247,7 +256,7 @@ app.post("/usrsearch", auth, async (req, res) => {
 
   } catch (err) {
     console.log(err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -257,12 +266,12 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
     const { id } = req.params;
 
     if(req.user.id===id){
-       return res.json({msg :"you can not change our role "})
+       return res.json({message :"you can not change our role "})
     }
 
     const user = await Users.findById(id);
     if (!user) {
-      return res.status(404).json({ msg: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // 🔥 toggle role
@@ -274,13 +283,24 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
 
     await user.save();
 
-    res.json({ msg: "Role updated", role: user.role });
+    res.json({ message: "Role updated", role: user.role });
 
   } catch (err) {
     console.log(err);
-    res.status(500).json({ msg: "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 });
+
+app.post("/logout" ,(req ,res)=>{
+  res.clearCookie("token");
+  res.json({message : "logged out successfully"});
+
+});
+
+app.get("/me", auth, (req, res) => {
+  res.json({ user: req.user });
+});
+
 
 
 // ================= DB + SERVER START =================
