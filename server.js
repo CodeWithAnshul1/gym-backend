@@ -58,11 +58,11 @@ app.post("/login", async (req, res) => {
 
     const token = jwt.sign({id:user._id  }, SECRET, { expiresIn: "2d" });
     // console.log(user.role);
-    res.cookie("token",token,{
-      httpOnly :true,
-      secure :true,
-      sameSite :"none",
-    });
+   res.cookie("token", token, {
+        httpOnly: true,
+        secure: true,       // ✅ required in production (https)
+        sameSite: "none",   // ✅ required for cross-origin
+      });
 
     res.json({role:user.role ,message:"" });
 
