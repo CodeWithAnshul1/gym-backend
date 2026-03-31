@@ -3,28 +3,31 @@ const jwt = require("jsonwebtoken");
 const Users = require("../models/Users");
 
 async function auth(req, res, next) {
-  const token = req.cookies.token;
-  //  console.log(req.cookies.token);
 
-  if (!token) {
-    return res.status(401).json({ message: "token missing" });
+  // ✅ get token from header
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ message: "Token missing" });
   }
 
-  try {
-    const decode = jwt.verify(token, process.env.SECRET);
+  const token = authHeader.split(" ")[1];
 
-    // 🔥 fetch user from DB
-    const user = await Users.findById(decode.id).select("-password");
+  try {
+    const decoded = jwt.verify(token, process.env.SECRET);
+
+    // ✅ fetch latest user from DB
+    const user = await Users.findById(decoded.id).select("-password");
 
     if (!user) {
-      return res.status(401).json({ message: "user not found" });
+      return res.status(401).json({ message: "User not found" });
     }
 
-    req.user = user; // ✅ FULL USER OBJECT
+    req.user = user; // 🔥 full user (with role)
     next();
 
   } catch (err) {
-    res.status(403).json({ message: "invalid token" });
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
 }
 

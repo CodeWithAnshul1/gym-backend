@@ -13,15 +13,15 @@ const Users = require("./models/Users");
 const SECRET = process.env.SECRET;
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5000;
-const cookieParser = require("cookie-parser");
+// const cookieParser = require("cookie-parser");
 
 const app = express();
-app.set("trust proxy", 1);
-app.use(cookieParser());
+// app.set("trust proxy", 1);
+
+// app.use(cookieParser());
 
 // ✅ Middleware
 app.use(cors({
-  credentials :true,
   // origin : "http://localhost:5173",
   origin: "https://stalwart-axolotl-862987.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
@@ -42,34 +42,32 @@ app.get("/", (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-     const emailNormalized =email.trim();
 
-    const user = await Users.findOne({ email:emailNormalized });
+    const user = await Users.findOne({ email });
 
     if (!user || !user.password) {
-      return res.json({ message: "user not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     const match = await bcrypt.compare(password, user.password);
 
     if (!match) {
-      return res.json({ message: "enter valid username or password" });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign({id:user._id  }, SECRET, { expiresIn: "2d" });
-    // console.log(user.role);
-   res.cookie("token", token, {
-        httpOnly: true,
-        secure: true,       // ✅ required in production (https)
-        sameSite: "none", 
-        path :"/",  // ✅ required for cross-origin
-      });
+    const token = jwt.sign(
+      { id: user._id },
+      SECRET,
+      { expiresIn: "2d" }
+    );
 
-    res.json({role:user.role ,message:"" });
+    res.json({
+      message: "Login successful",
+      token,
+    });
 
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "internal server error" });
+    res.status(500).json({ message: "Internal server error" });
   }
 });
 
@@ -78,31 +76,29 @@ app.post("/login", async (req, res) => {
 app.post("/create", async (req, res) => {
   try {
     const { email, password } = req.body;
-    const emailNormalized = email.trim();
 
-    const exist = await Users.findOne({ email: emailNormalized });
+    const exist = await Users.findOne({ email });
 
     if (exist) {
-    return res.status(409).json({ message: "User already exist" });
-}
+      return res.status(409).json({ message: "User already exists" });
+    }
+
     const hashedpass = await bcrypt.hash(password, 10);
 
     const user = new Users({
-      email: emailNormalized,
+      email,
       password: hashedpass,
-      role:"user",
+      role: "user",
     });
 
     await user.save();
 
-    res.json({ message: "New User Created successfully" });
+    res.json({ message: "User created successfully" });
 
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "error creating user" });
+    res.status(500).json({ message: "Error creating user" });
   }
 });
-
 
 // USERS (Protected)
 app.get("/clints", auth, async (req, res) => {
@@ -183,8 +179,8 @@ app.delete("/delete/:id", auth,check("superadmin"),async (req, res) => {
 // SEARCH
 app.post("/search", auth, async (req, res) => {
   try {
-    const search = req.body.search ;
-    serch =search || "";
+    let { search = "" } = req.body;
+
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
 
@@ -200,7 +196,7 @@ app.post("/search", auth, async (req, res) => {
       .limit(limit);
 
     if (users.length === 0) {
-      return res.json({ message: "User not found" });
+      return res.status(404).json({ message: "User not found" });
     }
 
     res.json({ users, totalPages });
@@ -208,7 +204,7 @@ app.post("/search", auth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: "Server error" });
   }
-}); 
+});
                  // user search
 
 app.post("/usrsearch", auth, async (req, res) => {
@@ -268,9 +264,9 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
   try {
     const { id } = req.params;
 
-    if(req.user.id===id){
-       return res.json({message :"you can not change our role "})
-    }
+   if (req.user._id.toString() === id) {
+  return res.status(400).json({ message: "You cannot change your own role" });
+}
 
     const user = await Users.findById(id);
     if (!user) {
@@ -294,16 +290,7 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
   }
 });
 
-app.post("/logout" ,(req ,res)=>{
-  res.clearCookie("token", {
-  httpOnly: true,
-  secure: true,
-  sameSite: "none",
-});
 
-  res.json({message : "logged out successfully"});
-
-});
 
 app.get("/me", auth, (req, res) => {
   res.json({ user: req.user });
