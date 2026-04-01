@@ -299,7 +299,7 @@ app.get("/me", auth, (req, res) => {
   res.json({ user: req.user });
 });
 
-app.put("/extendfee/:id", auth, async (req, res) => {
+app.put("/extendfee/:id", auth,check("admin","superadmin"), async (req, res) => {
   try {
     const { month } = req.body;
     const id = req.params.id;
