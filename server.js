@@ -22,8 +22,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  // origin : "http://localhost:5173",
-  origin: "https://stalwart-axolotl-862987.netlify.app",
+  origin : "http://localhost:5173",
+  // origin: "https://stalwart-axolotl-862987.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
@@ -131,8 +131,11 @@ const limit = parseInt(req.query.limit) || 5;
 
 // ADD USER
 app.post("/", auth, check("superadmin","admin"),async (req, res) => {
- const { name, number, add } = req.body;
-const emp = await new Employee({ name, number, add });
+ const { name, number, add ,month } = req.body;
+ const startdate =new Date();
+ const endate =new Date(startdate);
+ endate.setMonth(endate.getMonth() + Number(month));
+const emp = await new Employee({ name, number, add,entrydate:startdate, expiredate:endate, });
   await emp.save();
   res.json({ message: "user add successfully" });
 });
@@ -296,6 +299,46 @@ app.get("/me", auth, (req, res) => {
   res.json({ user: req.user });
 });
 
+app.put("/extendfee/:id", auth, async (req, res) => {
+  try {
+    const { month } = req.body;
+    const id = req.params.id;
+
+    if (!month || month < 1) {
+      return res.status(400).json({ message: "Invalid month" });
+    }
+
+    const clint = await Employee.findById(id);
+
+    if (!clint) {
+      return res.status(404).json({ message: "Client not found" });
+    }
+
+    
+    let baseDate = new Date(clint.expiredate);
+
+    // fallback (agar kabhi null ho)
+    if (!clint.expiredate) {
+      baseDate = new Date();
+    }
+
+    
+    baseDate.setMonth(baseDate.getMonth() + Number(month));
+
+    clint.expiredate = baseDate;
+
+    await clint.save();
+
+    return res.json({
+      message: "Membership extended successfully",
+      expiredate: clint.expiredate
+    });
+
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
 
 // ================= DB + SERVER START =================
