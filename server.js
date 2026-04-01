@@ -22,8 +22,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  origin : "http://localhost:5173",
-  // origin: "https://stalwart-axolotl-862987.netlify.app",
+  // origin : "http://localhost:5173",
+  origin: "https://stalwart-axolotl-862987.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
