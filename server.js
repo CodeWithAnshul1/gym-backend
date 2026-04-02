@@ -13,12 +13,9 @@ const Users = require("./models/Users");
 const SECRET = process.env.SECRET;
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5000;
-// const cookieParser = require("cookie-parser");
+
 
 const app = express();
-// app.set("trust proxy", 1);
-
-// app.use(cookieParser());
 
 // ✅ Middleware
 app.use(cors({
@@ -163,7 +160,7 @@ app.put("/clint/:id", auth, async (req, res) => {
 
 
 // DELETE
-app.delete("/delete/:id", auth,check("superadmin"),async (req, res) => {
+app.delete("/delete/:id", auth,check("superadmin","admin"),async (req, res) => {
   try {
     const Deleteusr = await Employee.findByIdAndDelete(req.params.id);
 
