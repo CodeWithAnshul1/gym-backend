@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const employeeSchema = new mongoose.Schema({
+const EmployeeSchema = new mongoose.Schema({
     name: String,
     number: {type :String , match: /^[0-9]{10}$/,},
     add: String,
@@ -15,7 +15,10 @@ const employeeSchema = new mongoose.Schema({
     
 }, {timestamps :true ,}
 );
+const getEmployeeModel = (db) => {
+  return db.models.Employee || db.model("Employee", EmployeeSchema);
+};
 
-const Employee = mongoose.model("Employee", employeeSchema);
+// const Employee = mongoose.model("Employee", employeeSchema);
 
-module.exports = Employee;
+module.exports = getEmployeeModel;

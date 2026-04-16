@@ -7,10 +7,15 @@ const bcrypt = require("bcrypt");
 const auth = require("./middleware/Middelware");
 const check = require("./middleware/SuperAuth");
 const mongoose = require("mongoose");
-const Employee = require("./models/Employee");
-const Users = require("./models/Users");
+// const Employee = require("./models/Employee");
+// const Users = require("./models/Users");
+const connectDB = require("./tenant/dbmanager");
+const getUserModel = require("./models/Users");
+const getEmployeeModel = require("./models/Employee");
+const getPaymentModel = require("./models/Payment");
 
-const SECRET = process.env.SECRET;
+
+// const SECRET = process.env.SECRET;
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5000;
 
@@ -36,13 +41,26 @@ app.get("/", (req, res) => {
 // ================= ROUTES =================
 
 // LOGIN
+
+
 app.post("/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, tenantId} = req.body;
+
+    if (!email || !password || !tenantId) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+    // console.log(tenantId);
+
+    // 🔥 connect correct DB
+    const db = await connectDB(tenantId);
+
+    // 🔥 dynamic model
+    const Users = getUserModel(db);
 
     const user = await Users.findOne({ email });
 
-    if (!user || !user.password) {
+    if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
@@ -52,9 +70,14 @@ app.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    // 🔥 store tenantId in token
     const token = jwt.sign(
-      { id: user._id },
-      SECRET,
+      {
+        id: user._id,
+        tenantId:tenantId,
+      
+      },
+      process.env.SECRET,
       { expiresIn: "2d" }
     );
 
@@ -64,7 +87,8 @@ app.post("/login", async (req, res) => {
     });
 
   } catch (err) {
-    res.status(500).json({ message: "Internal server error" });
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
@@ -72,7 +96,15 @@ app.post("/login", async (req, res) => {
 // CREATE USER
 app.post("/create", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password ,tenantId } = req.body;
+    
+
+    const db = await connectDB(tenantId);
+   
+    console.log(db.name);
+
+    const Users = getUserModel(db);
+
 
     const exist = await Users.findOne({ email });
 
@@ -86,6 +118,7 @@ app.post("/create", async (req, res) => {
       email,
       password: hashedpass,
       role: "user",
+      tenantId,
     });
 
     await user.save();
@@ -102,6 +135,8 @@ app.get("/clints", auth, async (req, res) => {
   const page = parseInt(req.query.page || 1);
   const limit = parseInt(req.query.limit || 5);
 
+  const Employee =  getEmployeeModel(req.db);
+
   const total = await Employee.countDocuments();
   const totalPages = Math.ceil(total/limit);
 
@@ -111,10 +146,13 @@ app.get("/clints", auth, async (req, res) => {
 
   res.json({ totalPages, users });
 });
+
 app.get("/users", auth,check("admin" ,"superadmin") ,async (req, res) => {
   const page = parseInt(req.query.page) || 1;
 const limit = parseInt(req.query.limit) || 5;
 // console.log("user route hit");
+  const Users = getUserModel(req.db);
+
 
   const total = await Users.countDocuments();
   const totalPages = Math.ceil(total/limit);
@@ -127,14 +165,62 @@ const limit = parseInt(req.query.limit) || 5;
 });
 
 // ADD USER
-app.post("/", auth, check("superadmin","admin"),async (req, res) => {
- const { name, number, add ,month } = req.body;
- const startdate =new Date();
- const endate =new Date(startdate);
- endate.setMonth(endate.getMonth() + Number(month));
-const emp = await new Employee({ name, number, add,entrydate:startdate, expiredate:endate, });
-  await emp.save();
-  res.json({ message: "user add successfully" });
+app.post("/", auth, check("superadmin", "admin"), async (req, res) => {
+  try {
+    const { name, number, add, month } = req.body;
+
+    // ✅ validation
+    if (!name || !number || !add || !month) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
+    if (!/^[0-9]{10}$/.test(number)) {
+      return res.status(400).json({ message: "Invalid phone number" });
+    }
+
+    if (month < 1) {
+      return res.status(400).json({ message: "Invalid month" });
+    }
+
+    const startdate = new Date();
+    const endate = new Date(startdate);
+    endate.setMonth(endate.getMonth() + Number(month));
+
+    const Employee = getEmployeeModel(req.db);
+
+    const emp = new Employee({
+      name,
+      number,
+      add,
+      entrydate: startdate,
+      expiredate: endate,
+    });
+
+    await emp.save();
+
+    const Payment = getPaymentModel(req.db);
+     const payment = new Payment({
+      amount: (month*700),
+      entrydate :startdate,
+      userId : emp._id,
+     });
+     console.log(payment);
+     try{
+       await payment.save();
+      console.log("payment save ");
+
+     }
+     catch(ee){
+      console.log("payment fail", ee);
+     }
+
+
+    res.json({ message: "User added successfully" });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 
@@ -160,21 +246,33 @@ app.put("/clint/:id", auth, async (req, res) => {
 
 
 // DELETE
-app.delete("/delete/:id", auth,check("superadmin","admin"),async (req, res) => {
+app.delete("/delete/:id", auth, check("superadmin","admin"), async (req, res) => {
   try {
-    const Deleteusr = await Employee.findByIdAndDelete(req.params.id);
+    const Employee = getEmployeeModel(req.db);
+    const Payment = getPaymentModel(req.db);
 
-    if (!Deleteusr) {
-      return res.json({ message: "user not found" });
+    const userId = req.params.id;
+
+    // 🔥 mark all payments of this user as deleted
+    await Payment.updateMany(
+      { userId: userId },
+      { $set: { isDeleted: true } }
+    );
+
+    // 🔥 delete user
+    const deletedUser = await Employee.findByIdAndDelete(userId);
+
+    if (!deletedUser) {
+      return res.json({ message: "User not found" });
     }
 
-    res.json({ message: "user delete successfully" });
+    res.json({ message: "User deleted successfully" });
 
   } catch (err) {
-    res.status(500).json({ message: "server error" });
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
-
 
 // SEARCH
 app.post("/search", auth, async (req, res) => {
@@ -188,10 +286,13 @@ app.post("/search", auth, async (req, res) => {
       name: { $regex: search, $options: "i" }
     };
 
+    const Employee =getEmployeeModel(req.db);
+
     const total = await Employee.countDocuments(query);
     const totalPages = Math.ceil(total / limit);
 
     const users = await Employee.find(query)
+      .sort({createdAt:- 1})  
       .skip((page - 1) * limit)
       .limit(limit);
 
@@ -209,48 +310,39 @@ app.post("/search", auth, async (req, res) => {
 
 app.post("/usrsearch", auth, async (req, res) => {
   try {
-    let { search } = req.body||"";
+    let { search = "" } = req.body;
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 5;
 
-    // ✅ prevent empty search
-    // if (!search || search.trim() === "") {
-    //   return res.status(400).json({ message: "Search is required" });
-    // }
-
-    // escape regex (IMPORTANT)
     const escapeRegex = (text) => {
       return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     };
 
     const safeSearch = escapeRegex(search.trim());
 
-    //  query (email + name optional)
-    const query = {
-      $or: [
-        { email: { $regex: safeSearch, $options: "i" } },
-        // { name: { $regex: safeSearch, $options: "i" } }
-      ]
-    };
+    const query = search.trim()
+      ? {
+          $or: [
+            { email: { $regex: safeSearch, $options: "i" } }
+          ]
+        }
+      : {};
+
+    const Users = getUserModel(req.db);
 
     const total = await Users.countDocuments(query);
     const totalPages = Math.ceil(total / limit);
 
     const users = await Users.find(query)
-      .select("-password") // 🔥 hide password
+      .select("-password")
+      .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
-
-    // ✅ consistent response
-    if (users.length === 0) {
-      return res.status(404).json({ message: "User not found" });
-    }
 
     res.json({
       users,
       totalPages,
-      // currentPage: page
     });
 
   } catch (err) {
@@ -258,6 +350,7 @@ app.post("/usrsearch", auth, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
 
 /*CHANGE ROLE */
 app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
@@ -267,7 +360,7 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
    if (req.user._id.toString() === id) {
   return res.status(400).json({ message: "You cannot change your own role" });
 }
-
+  const Users = getUserModel(req.db);
     const user = await Users.findById(id);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -293,6 +386,7 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
 
 
 app.get("/me", auth, (req, res) => {
+  // console.log("USER:", req.user);
   res.json({ user: req.user });
 });
 
@@ -305,6 +399,7 @@ app.put("/extendfee/:id", auth,check("admin","superadmin"), async (req, res) => 
       return res.status(400).json({ message: "Invalid month" });
     }
 
+    const Employee = getEmployeeModel(req.db);
     const clint = await Employee.findById(id);
 
     if (!clint) {
@@ -325,6 +420,21 @@ app.put("/extendfee/:id", auth,check("admin","superadmin"), async (req, res) => 
     clint.expiredate = baseDate;
 
     await clint.save();
+    const Payment = getPaymentModel(req.db);
+    const payment = new Payment({
+      amount:(month*700),
+      entrydate: new Date(),
+      userId: new mongoose.Types.ObjectId(id),
+    });
+    
+
+        const data = await payment.save();
+       
+      //  console.log(data);
+      //  console.log("payment succes");
+    
+
+
 
     return res.json({
       message: "Membership extended successfully",
@@ -337,20 +447,70 @@ app.put("/extendfee/:id", auth,check("admin","superadmin"), async (req, res) => 
   }
 });
 
+//Revenue
+
+app.get("/revenue", auth, check("superadmin"), async (req, res) => {
+  try {
+    const now = new Date();
+
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0,0,0,0);
+    console.log("START:", start);
+
+    const Payment = getPaymentModel(req.db);
+
+    const data = await Payment.aggregate([
+      {
+        $match: {
+          entrydate: { $gte: start, $lte: now },
+          $or: [
+            { isDeleted: false },
+            { isDeleted: { $exists: false } }
+          ]
+        }
+      },
+      {
+        $lookup: {
+          from: "employees", 
+          localField: "userId",
+          foreignField: "_id",
+          as: "user"
+        }
+      },
+      {
+        $unwind: "$user"
+      },
+      {
+        $project: {
+          name: "$user.name",
+          entrydate: 1,
+          amount: 1
+        }
+      }
+    ]);
+
+
+    const total = data.reduce((sum, item) => sum + item.amount, 0);
+ res.json({data ,total});
+   
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "error" });
+  }
+});
+
 
 // ================= DB + SERVER START =================
 
 const startServer = async () => {
   try {
-    await mongoose.connect(MONGO_URI);
-    console.log("connect mongodb");
-
     app.listen(PORT, () => {
       console.log("server is start");
     });
-
   } catch (err) {
-    console.log("MongoDB connection error:", err);
+    console.log("Server error:", err);
   }
 };
 
