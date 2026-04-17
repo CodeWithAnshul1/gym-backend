@@ -25,7 +25,7 @@ const app = express();
 // ✅ Middleware
 app.use(cors({
   // origin : "http://localhost:5173",
-  origin: "https://mrolympia.netlify.app",
+  origin: "https://anshulgymhub.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
