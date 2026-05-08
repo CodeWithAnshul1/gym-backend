@@ -10,6 +10,20 @@ const UsersSchema = new mongoose.Schema({
           enum:["user" , "admin" , "superadmin"],
           default : "user",
 
+     },
+    otp:String,
+
+     otpExpiry:Date,
+     otptype:String,
+
+     verified:{
+          type:Boolean,
+          default:false,
+
+     },
+     forgot:{
+          type:Boolean,
+          default:false,
      }
      
 } ,{timestamps :true }) ;

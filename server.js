@@ -13,6 +13,17 @@ const connectDB = require("./tenant/dbmanager");
 const getUserModel = require("./models/Users");
 const getEmployeeModel = require("./models/Employee");
 const getPaymentModel = require("./models/Payment");
+const nodemailer=require("nodemailer");
+
+const transporter=
+nodemailer.createTransport({
+ service:"gmail",
+
+ auth:{
+   user:process.env.EMAIL_USER,
+   pass:process.env.EMAIL_PASS
+ }
+});
 
 
 // const SECRET = process.env.SECRET;
@@ -24,8 +35,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  // origin : "http://localhost:5173",
-  origin: "https://anshulgymhub.netlify.app",
+  origin :  "http://localhost:5173",
+  // origin: "https://anshulgymhub.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
@@ -94,41 +105,177 @@ app.post("/login", async (req, res) => {
 
 
 // CREATE USER
-app.post("/create", async (req, res) => {
+app.post("/send-singup-otp", async (req, res) => {
   try {
-    const { email, password ,tenantId } = req.body;
-    
+    const { email, password, tenantId, type } = req.body;
+        // console.log({type} );
+
 
     const db = await connectDB(tenantId);
-   
-    console.log(db.name);
-
     const Users = getUserModel(db);
 
+    let user = await Users.findOne({ email });
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const exist = await Users.findOne({ email });
+    // ================= SIGNUP =================
+    if (type === "signup") {
 
-    if (exist) {
-      return res.status(409).json({ message: "User already exists" });
+      if (user) {
+        return res.status(409).json({ message: "User already exists" });
+      }
+
+      const hashedpass = await bcrypt.hash(password, 10);
+
+      user = new Users({
+        email,
+        password: hashedpass,
+        role: "user",
+        tenantId,
+        otp,
+        otpExpiry: Date.now() + 5 * 60 * 1000,
+        otptype: "signup",
+      });
+
+      await transporter.sendMail({
+        to: email,
+        subject: "Your 6 digit OTP",
+        text: otp
+      });
+
+      await user.save();
     }
 
-    const hashedpass = await bcrypt.hash(password, 10);
+    // ================= FORGOT =================
+    else if (type === "forgot") {
 
-    const user = new Users({
-      email,
-      password: hashedpass,
-      role: "user",
-      tenantId,
-    });
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+
+      user.otp = otp;
+      user.otpExpiry = Date.now() + 5 * 60 * 1000;
+      user.otptype = "forgot";
+
+      await transporter.sendMail({
+        to: email,
+        subject: "Reset Password OTP",
+        text: otp
+      });
+
+      await user.save(); // ✅ VERY IMPORTANT
+    }
+
+    res.json({ message: "OTP sent successfully" });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Error sending OTP" });
+  }
+});
+
+
+
+app.post("/verify-otp", async (req,res)=>{
+
+ try{
+
+   const {tenantId,email,otp,type} = req.body;
+  //  const type=(req.query.type);
+
+   const db = await connectDB(tenantId);
+
+   const Users = getUserModel(db);
+
+   const user = await Users.findOne({email});
+
+   if(!user){
+      return res.status(404).json({
+         message:"User not found"
+      });
+   }
+
+   if(!user.otp || Date.now() > user.otpExpiry){
+      return res.status(400).json({
+         message:"OTP expired"
+      });
+   }
+
+   if(otp !== user.otp){
+      return res.status(400).json({
+         message:"Invalid OTP"
+      });
+   }
+   if(type==="signup"){
+
+     user.verified = true;
+    }
+
+    if(type === "forgot"){
+      user.forgot=true;
+    }
+    
+    
+    
+    user.otp = null;
+    user.otpExpiry = null;
+    user.otptype =null;
+    await user.save();
+    
+
+   res.json({
+      message:"Account verified successfully"
+   });
+
+
+ }catch(err){
+   console.log(err);
+
+   res.status(500).json({
+      message:"Server error"
+   });
+ }
+
+});
+
+app.post("/new-pass", async (req, res) => {
+  try {
+    const { email, tenantId, password } = req.body;
+
+    if (!email || !tenantId || !password) {
+      return res.status(400).json({ message: "All fields required" });
+    }
+
+    const db = await connectDB(tenantId);
+    const Users = getUserModel(db);
+
+    const user = await Users.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.forgot) {
+      return res.status(400).json({ message: "Unauthorized request" });
+    }
+
+    const hashpass = await bcrypt.hash(password, 10);
+
+    user.password = hashpass;
+
+    // ✅ FIX
+    user.forgot = false;
 
     await user.save();
 
-    res.json({ message: "User created successfully" });
+    res.json({ message: "Password updated successfully" });
 
   } catch (err) {
-    res.status(500).json({ message: "Error creating user" });
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
   }
 });
+
 
 // USERS (Protected)
 app.get("/clints", auth, async (req, res) => {
