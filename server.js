@@ -18,13 +18,19 @@ const nodemailer=require("nodemailer");
 console.log("EMAIL_USER:", process.env.EMAIL_USER);
 console.log("EMAIL_PASS:", process.env.EMAIL_PASS ? "PASS EXISTS" : "NO PASS");
 
-const transporter=nodemailer.createTransport({
- service:"gmail",
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 465,
+  secure: true,
 
- auth:{
-   user:process.env.EMAIL_USER,
-   pass:process.env.EMAIL_PASS
- }
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
 transporter.verify((err, success) => {
   if (err) {
