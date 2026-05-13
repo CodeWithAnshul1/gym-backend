@@ -15,14 +15,23 @@ const getEmployeeModel = require("./models/Employee");
 const getPaymentModel = require("./models/Payment");
 const nodemailer=require("nodemailer");
 
-const transporter=
-nodemailer.createTransport({
+console.log("EMAIL_USER:", process.env.EMAIL_USER);
+console.log("EMAIL_PASS:", process.env.EMAIL_PASS ? "PASS EXISTS" : "NO PASS");
+
+const transporter=nodemailer.createTransport({
  service:"gmail",
 
  auth:{
    user:process.env.EMAIL_USER,
    pass:process.env.EMAIL_PASS
  }
+});
+transporter.verify((err, success) => {
+  if (err) {
+    console.log("Transport error:", err);
+  } else {
+    console.log("Server ready");
+  }
 });
 
 
@@ -35,8 +44,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  // origin :  "http://localhost:5173",
-  origin: "https://anshulgymhub.netlify.app",
+  origin :  "http://localhost:5173",
+  // origin: "https://anshulgymhub.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
