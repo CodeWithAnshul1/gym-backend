@@ -20,21 +20,17 @@ console.log("EMAIL_PASS:", process.env.BREVO_PASS ? "PASS EXISTS" : "NO PASS");
 
 const transporter = nodemailer.createTransport({
   host: "smtp-relay.brevo.com",
-  port: 587,
-  secure: false,
+  port: 465,
+  secure: true,
 
   auth: {
     user: process.env.BREVO_EMAIL,
     pass: process.env.BREVO_PASS,
-  }
-});
+  },
 
-transporter.verify((err, success) => {
-  if (err) {
-    console.log("Transport error:", err);
-  } else {
-    console.log("Server ready");
-  }
+  connectionTimeout: 10000,
+  greetingTimeout: 10000,
+  socketTimeout: 10000,
 });
 
 
