@@ -15,23 +15,20 @@ const getEmployeeModel = require("./models/Employee");
 const getPaymentModel = require("./models/Payment");
 const nodemailer=require("nodemailer");
 
-console.log("EMAIL_USER:", process.env.EMAIL_USER);
-console.log("EMAIL_PASS:", process.env.EMAIL_PASS ? "PASS EXISTS" : "NO PASS");
+console.log("EMAIL_USER:", process.env.BREVO_EMAIL);
+console.log("EMAIL_PASS:", process.env.BREVO_PASS ? "PASS EXISTS" : "NO PASS");
 
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 465,
-  secure: true,
+  host: "smtp-relay.brevo.com",
+  port: 587,
+  secure: false,
 
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
+    user: process.env.BREVO_EMAIL,
+    pass: process.env.BREVO_PASS,
+  }
 });
+
 transporter.verify((err, success) => {
   if (err) {
     console.log("Transport error:", err);
@@ -152,6 +149,7 @@ app.post("/send-singup-otp", async (req, res) => {
       });
 
       await transporter.sendMail({
+        from: "anshulmogha50@gmail.com",
         to: email,
         subject: "Your 6 digit OTP",
         text: otp
@@ -173,6 +171,7 @@ app.post("/send-singup-otp", async (req, res) => {
       user.otptype = "forgot";
 
       await transporter.sendMail({
+        from: "anshulmogha50@gmail.com",
         to: email,
         subject: "Reset Password OTP",
         text: otp
