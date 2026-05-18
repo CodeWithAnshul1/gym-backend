@@ -7,34 +7,13 @@ const bcrypt = require("bcrypt");
 const auth = require("./middleware/Middelware");
 const check = require("./middleware/SuperAuth");
 const mongoose = require("mongoose");
-// const Employee = require("./models/Employee");
-// const Users = require("./models/Users");
+
 const connectDB = require("./tenant/dbmanager");
 const getUserModel = require("./models/Users");
 const getEmployeeModel = require("./models/Employee");
 const getPaymentModel = require("./models/Payment");
-const nodemailer=require("nodemailer");
 
-console.log("EMAIL_USER:", process.env.BREVO_EMAIL);
-console.log("EMAIL_PASS:", process.env.BREVO_PASS ? "PASS EXISTS" : "NO PASS");
-
-const transporter = nodemailer.createTransport({
-  host: "smtp-relay.brevo.com",
-  port: 465,
-  secure: true,
-
-  auth: {
-    user: process.env.BREVO_EMAIL,
-    pass: process.env.BREVO_PASS,
-  },
-
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 10000,
-});
-
-
-// const SECRET = process.env.SECRET;
+const sendmail =require("./api/sendotp");
 const MONGO_URI = process.env.MONGO_URI;
 const PORT = process.env.PORT || 5000;
 
@@ -43,7 +22,7 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  // origin :  "http://localhost:5173",
+  origin :  "http://localhost:5173",
   origin: "https://anshulgymhub.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
@@ -144,14 +123,15 @@ app.post("/send-singup-otp", async (req, res) => {
         otptype: "signup",
       });
 
-      await transporter.sendMail({
-        from: "anshulmogha50@gmail.com",
-        to: email,
-        subject: "Your 6 digit OTP",
-        text: otp
-      });
+      // await transporter.sendMail({
+      //   from: "anshulmogha50@gmail.com",
+      //   to: email,
+      //   subject: "Your 6 digit OTP",
+      //   text: otp
+      // });
 
       await user.save();
+      await sendmail(otp , email ,type);
     }
 
     // ================= FORGOT =================
@@ -166,14 +146,15 @@ app.post("/send-singup-otp", async (req, res) => {
       user.otpExpiry = Date.now() + 5 * 60 * 1000;
       user.otptype = "forgot";
 
-      await transporter.sendMail({
-        from: "anshulmogha50@gmail.com",
-        to: email,
-        subject: "Reset Password OTP",
-        text: otp
-      });
+      // await transporter.sendMail({
+      //   from: "anshulmogha50@gmail.com",
+      //   to: email,
+      //   subject: "Reset Password OTP",
+      //   text: otp
+      // });
 
       await user.save(); // ✅ VERY IMPORTANT
+      await sendmail(otp , email , type);
     }
 
     res.json({ message: "OTP sent successfully" });
