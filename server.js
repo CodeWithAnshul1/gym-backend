@@ -23,7 +23,7 @@ const app = express();
 // ✅ Middleware
 app.use(cors({
   origin :  "http://localhost:5173",
-  origin: "https://anshulgymhub.netlify.app",
+  // origin: "https://anshulgymhub.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
@@ -60,6 +60,9 @@ app.post("/login", async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+    if(!user.verified){
+      return res.status(404).json({message :"verify account first "});
     }
 
     const match = await bcrypt.compare(password, user.password);
@@ -107,21 +110,34 @@ app.post("/send-singup-otp", async (req, res) => {
     // ================= SIGNUP =================
     if (type === "signup") {
 
-      if (user) {
+      if (user && user.verified) {
         return res.status(409).json({ message: "User already exists" });
       }
 
       const hashedpass = await bcrypt.hash(password, 10);
+      if(!user.verified){
+        user.password=hashedpass,
+        user.otp= otp,
+        user.otpExpiry= Date.now() + 5 * 60 * 1000,
+        user.otptype="signup",
 
-      user = new Users({
-        email,
-        password: hashedpass,
-        role: "user",
-        tenantId,
-        otp,
-        otpExpiry: Date.now() + 5 * 60 * 1000,
-        otptype: "signup",
-      });
+        await sendmail( otp , email,type);
+        await user.save();
+      
+
+      }
+      else{
+
+        user = new Users({
+          email,
+          password: hashedpass,
+          role: "user",
+          tenantId,
+          otp,
+          otpExpiry: Date.now() + 5 * 60 * 1000,
+          otptype: "signup",
+        });
+      }
 
       // await transporter.sendMail({
       //   from: "anshulmogha50@gmail.com",
