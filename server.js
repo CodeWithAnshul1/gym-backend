@@ -7,11 +7,13 @@ const bcrypt = require("bcrypt");
 const auth = require("./middleware/Middelware");
 const check = require("./middleware/SuperAuth");
 const mongoose = require("mongoose");
+const crypto = require("crypto");
 
 const connectDB = require("./tenant/dbmanager");
 const getUserModel = require("./models/Users");
 const getEmployeeModel = require("./models/Employee");
 const getPaymentModel = require("./models/Payment");
+const razorpay =require("./tenant/razorpay");
 
 const sendmail =require("./api/sendotp");
 const MONGO_URI = process.env.MONGO_URI;
@@ -22,8 +24,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  // origin :  "http://localhost:5173",
-  origin: "https://anshulgymhub.netlify.app",
+  origin :  "http://localhost:5173",
+  // origin: "https://anshulgymhub.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
@@ -377,26 +379,112 @@ app.post("/", auth, check("superadmin", "admin"), async (req, res) => {
   }
 });
 
+//add fee by user 
+app.post("/create-order", auth ,async (req , res)=>{
+  try{
 
-// UPDATE
-app.put("/clint/:id", auth, async (req, res) => {
-  try {
-    const updateusr = await Employee.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    );
-
-    if (!updateusr) {
-      return res.status(404).json({ message: "user not found" });
-    }
-
-    res.json(updateusr);
-
-  } catch (err) {
-    res.status(500).json({ message: "error in update" });
+    const {month , id}=req.body;
+      if ( !month || month < 1){
+        return res.status(400).json({message:"invalid months"});
+       }
+  
+    const amount = Number(month) * 700;
+  
+    const option ={
+      amount: amount * 100,
+      currency :"INR",
+      receipt : `recipt ${Date.now()}`
+    };
+  
+    const order = await razorpay.orders.create(option);
+    res.status(200).json({
+      success:true ,
+      order });
+  }catch(err){
+    console.log(err);
+    res.status(500).json({ message:"order creation failed" ,
+      success:false
+    });
   }
 });
+
+app.post("/order-verify", auth, async (req,res)=>{
+  
+  try{
+
+        const  {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            month,
+            id
+        } = req.body;
+        
+        const body = 
+             razorpay_order_id +"|"+razorpay_payment_id;
+        
+        const expectsign = crypto.
+              createHmac(
+                "sha256",
+                process.env.RAZORPAY_KEY_SECRET
+              )
+              .update(body.toString())
+              .digest("hex");
+        
+        if(expectsign!==razorpay_signature){
+            return res.status(400).json({message:"payment faild !"});
+        }
+
+        
+        const employee = getEmployeeModel(req.db);
+        
+        const clint =  await employee.findById(id);
+        
+        if(!clint){
+          return res.status(400).json({message:"clint not found"});
+        }
+        console.log(clint.expiredate);
+        const currentdate = new Date(clint.expiredate);
+
+        currentdate.setMonth(
+          currentdate.getMonth()+ Number(month)
+        );
+
+        clint.expiredate=currentdate;
+
+        // clint.expiredate.setMonth(clint.expiredate.getMonth()+ Number(month));
+        console.log(clint.expiredate);
+        await clint.save();
+
+         return   res.json({message:"payment successfull"});
+
+    } catch(err){
+      console.log(err);
+      return res.json({message :"something went wrong"});
+  }
+      
+});
+
+
+// UPDATE
+// app.put("/clint/:id", auth, async (req, res) => {
+//   try {
+//     const updateusr = await Employee.findByIdAndUpdate(
+//       req.params.id,
+//       req.body,
+//       { new: true }
+//     );
+
+//     if (!updateusr) {
+//       return res.status(404).json({ message: "user not found" });
+//     }
+
+//     res.json(updateusr);
+
+//   } catch (err) {
+//     res.status(500).json({ message: "error in update" });
+//   }
+// });
 
 
 // DELETE
