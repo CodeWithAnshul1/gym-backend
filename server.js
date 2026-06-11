@@ -24,8 +24,8 @@ const app = express();
 
 // ✅ Middleware
 app.use(cors({
-  // origin :  "http://localhost:5173",
-  origin: "https://anshulgymhub.netlify.app",
+  origin :  "http://localhost:5173",
+  // origin: "https://anshulgymhub.netlify.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
@@ -437,6 +437,7 @@ app.post("/order-verify", auth, async (req,res)=>{
 
         
         const employee = getEmployeeModel(req.db);
+        const Payment = getPaymentModel(req.db);
         
         const clint =  await employee.findById(id);
         
@@ -455,6 +456,13 @@ app.post("/order-verify", auth, async (req,res)=>{
         // clint.expiredate.setMonth(clint.expiredate.getMonth()+ Number(month));
         console.log(clint.expiredate);
         await clint.save();
+         const payment= new Payment({
+          amount:(month*700),
+          entrydate:new Date(),
+          userId:id,
+
+        })
+        await payment.save();
 
          return   res.json({message:"payment successfull"});
 
