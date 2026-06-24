@@ -8,6 +8,7 @@ const auth = require("./middleware/Middelware");
 const check = require("./middleware/SuperAuth");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
+const cookiesParser = require("cookie-parser");
 
 const connectDB = require("./tenant/dbmanager");
 const getUserModel = require("./models/Users");
@@ -21,11 +22,13 @@ const PORT = process.env.PORT || 5000;
 
 
 const app = express();
+app.use(cookiesParser());
 
 // ✅ Middleware
 app.use(cors({
-  origin :  "http://localhost:5173",
-  // origin: "https://anshulgymhub.netlify.app",
+  // origin :  "http://localhost:5173",
+  origin: "https://anshulgymhub.netlify.app",
+  credentials :true,
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
 
@@ -82,11 +85,21 @@ app.post("/login", async (req, res) => {
       },
       process.env.SECRET,
       { expiresIn: "2d" }
+
+
     );
+
+    res.cookie("token",token,{
+      httpOnly:true,
+      secure:true,
+      sameSite:"lax",
+      maxAge:2 * 24 * 60 * 60 * 1000,
+    });
+    // console.log(res.getHeaders());
 
     res.json({
       message: "Login successful",
-      token,
+      // token,
     });
 
   } catch (err) {
@@ -454,7 +467,7 @@ app.post("/order-verify", auth, async (req,res)=>{
         clint.expiredate=currentdate;
 
         // clint.expiredate.setMonth(clint.expiredate.getMonth()+ Number(month));
-        console.log(clint.expiredate);
+        // console.log(clint.expiredate);
         await clint.save();
          const payment= new Payment({
           amount:(month*700),

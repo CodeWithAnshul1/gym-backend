@@ -7,13 +7,14 @@ const getUserModel = require("../models/Users");
 async function auth(req, res, next) {
 
   // ✅ get token from header
-  const authHeader = req.headers.authorization;
+  // const authHeader = req.headers.authorization;
+  const token =req.cookies.token;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!token) {
     return res.status(401).json({ message: "Token missing" });
   }
 // console.log("AUTH HEADER:", req.headers.authorization);
-  const token = authHeader.split(" ")[1];
+  // const token = authHeader.split(" ")[1];
 
   try {
     const decoded = jwt.verify(token, process.env.SECRET);
