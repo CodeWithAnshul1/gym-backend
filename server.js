@@ -92,7 +92,7 @@ app.post("/login", async (req, res) => {
     res.cookie("token",token,{
       httpOnly:true,
       secure:true,
-      sameSite:"lax",
+      sameSite:"none",
       maxAge:2 * 24 * 60 * 60 * 1000,
     });
     // console.log(res.getHeaders());
@@ -762,6 +762,21 @@ app.get("/revenue", auth, check("superadmin"), async (req, res) => {
     console.log(err);
     res.status(500).json({ message: "error" });
   }
+});
+
+app.post("/logout",auth ,(req , res)=>{
+try{
+  res.clearCookie("token",{
+  httpOnly:true,
+  secure:false,
+  sameSite:"lax",
+});
+
+}
+catch(err){
+  console.log(err);
+  res.json({message:"logout fail"});
+}
 });
 
 
