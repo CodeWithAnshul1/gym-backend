@@ -771,6 +771,7 @@ try{
   secure:false,
   sameSite:"lax",
 });
+ return res.json({message:"logout successfully"});
 
 }
 catch(err){
