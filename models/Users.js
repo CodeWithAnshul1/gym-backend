@@ -24,6 +24,10 @@ const UsersSchema = new mongoose.Schema({
      forgot:{
           type:Boolean,
           default:false,
+     },
+     refreshtoken:{
+          type:String,
+          default:null,
      }
      
 } ,{timestamps :true }) ;

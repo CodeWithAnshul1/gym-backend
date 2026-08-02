@@ -76,35 +76,129 @@ app.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // 🔥 store tenantId in token
-    const token = jwt.sign(
+  
+    const accesstoken = jwt.sign(
       {
         id: user._id,
         tenantId:tenantId,
       
       },
-      process.env.SECRET,
-      { expiresIn: "2d" }
+      process.env.ACCESSSECRET,
+      { expiresIn: "1m" }
 
 
     );
+    const refreshtoken = jwt.sign(
+      {
+        id :user._id,
+        tenantId:tenantId,
+      },
+      process.env.REFRESHSECRET,
+      {
+        expiresIn:"30d"
 
-    res.cookie("token",token,{
+      }
+    );
+
+    res.cookie("accesstoken",accesstoken,{
       httpOnly:true,
       secure:true,
       sameSite:"none",
-      maxAge:2 * 24 * 60 * 60 * 1000,
+      maxAge:1 * 60 * 1000,
     });
-    // console.log(res.getHeaders());
+    res.cookie("refreshtoken",refreshtoken,{
+      httpOnly:true,
+      secure:true,
+      sameSite:"none",
+      maxAge:30 * 24 * 60 *60 *1000,
+
+    });
+    user.refreshtoken = refreshtoken;
+    await user.save();
+    
 
     res.json({
       message: "Login successful",
-      // token,
+      // accesstoken,
     });
 
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+app.post("/refresh",async(req ,res )=>{
+
+  try{
+      const refreshtoken= req.cookies.refreshtoken;
+        if(!refreshtoken){
+          return res.status(402).json({message:"reftoken missing"});
+        }
+
+      const decoded =jwt.verify(refreshtoken,process.env.REFRESHSECRET);
+    
+  
+
+      const tenantId =decoded.tenantId;
+      const db = await connectDB(tenantId);
+      const Users = getUserModel(db);
+      const user = await Users.findById(decoded.id).select("-password");
+        if(!user){
+          return res.status(401).json({message:"user not found"});
+        }
+
+      if(refreshtoken!==user.refreshtoken){
+         return res.status(401).json({message:"invalid refreshtoken"});
+      }
+
+     const accesstoken = jwt.sign(
+        {
+           id:user._id,
+           tenantId:tenantId,
+        },
+        process.env.ACCESSSECRET,
+       {expiresIn:"1m"},
+
+       );
+       const newrefreshtoken = jwn.sign(
+        {
+          id:user._id,
+          tenantId:tenantId,
+        },
+        process.env.REFRESHSECRET,
+        {
+          expiresIn:"30d"
+        }
+
+
+       );
+       user.refreshtoken=newrefreshtoken;
+       await user.save();
+
+       res.cookie("refreshtoken",newrefreshtoken,{
+        httpOnly:true,
+        secure:true,
+        sameSite:"none",
+        maxAge: 30*24*60*60*1000,
+});
+
+     res.cookie("accesstoken",accesstoken,{
+          httpOnly:true,
+
+         secure:true,
+
+        sameSite:"none",
+
+        maxAge:1*60*1000,
+
+     });
+     console.log("extend");
+    return res.json({message:"at extend"});
+
+  }catch(err){
+    console.log(err);
+
   }
 });
 
@@ -766,7 +860,7 @@ app.get("/revenue", auth, check("superadmin"), async (req, res) => {
 
 app.post("/logout",auth ,(req , res)=>{
 try{
-  res.clearCookie("token",{
+  res.clearCookie("accesstoken",{
   httpOnly:true,
   secure:false,
   sameSite:"lax",

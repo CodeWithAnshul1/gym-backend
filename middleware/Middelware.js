@@ -8,7 +8,7 @@ async function auth(req, res, next) {
 
   // ✅ get token from header
   // const authHeader = req.headers.authorization;
-  const token =req.cookies.token;
+  const token =req.cookies.accesstoken;
 
   if (!token) {
     return res.status(401).json({ message: "Token missing" });
@@ -17,7 +17,7 @@ async function auth(req, res, next) {
   // const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(token, process.env.SECRET);
+    const decoded = jwt.verify(token, process.env.ACCESSSECRET);
     // console.log(decoded);
     const tenantId =decoded.tenantId;
 
