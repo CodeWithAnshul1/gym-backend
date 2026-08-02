@@ -161,7 +161,7 @@ app.post("/refresh",async(req ,res )=>{
        {expiresIn:"1m"},
 
        );
-       const newrefreshtoken = jwn.sign(
+       const newrefreshtoken = jwt.sign(
         {
           id:user._id,
           tenantId:tenantId,
