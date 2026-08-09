@@ -26,8 +26,8 @@ app.use(cookiesParser());
 
 // ✅ Middleware
 app.use(cors({
-  // origin :  "http://localhost:5173",
-  origin: "https://anshulgymhub.netlify.app",
+  origin :  "http://localhost:5173",
+  // origin: "https://anshulgymhub.netlify.app",
   credentials :true,
   methods: ["GET", "POST", "PUT", "DELETE"],
 }));
@@ -40,11 +40,57 @@ app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
+const isproduction = process.env.NODE_ENV ==="production";
+
+const cookieOption={
+  httpOnly:true,
+  secure:isproduction,
+  sameSite:isproduction ?"none":"lax",
+};
+
 
 // ================= ROUTES =================
 
 // LOGIN
+app.get("/db-query-test", async (req, res) => {
+  const start = Date.now();
 
+  try {
+    const db = await connectDB("c");
+
+    const queryStart = Date.now();
+
+    const result = await db
+      .collection("users")
+      .findOne({});
+
+    console.log(
+      "MONGO QUERY:",
+      Date.now() - queryStart,
+      "ms"
+    );
+
+    console.log(
+      "TOTAL:",
+      Date.now() - start,
+      "ms"
+    );
+
+    res.json({
+      success: true,
+      queryTime: Date.now() - queryStart,
+      total: Date.now() - start,
+      found: !!result
+    });
+
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
 
 app.post("/login", async (req, res) => {
   try {
@@ -73,7 +119,7 @@ app.post("/login", async (req, res) => {
     const match = await bcrypt.compare(password, user.password);
 
     if (!match) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(402).json({ message: "Invalid credentials" });
     }
 
   
@@ -84,7 +130,7 @@ app.post("/login", async (req, res) => {
       
       },
       process.env.ACCESSSECRET,
-      { expiresIn: "1m" }
+      { expiresIn:"5m" }
 
 
     );
@@ -101,15 +147,17 @@ app.post("/login", async (req, res) => {
     );
 
     res.cookie("accesstoken",accesstoken,{
-      httpOnly:true,
-      secure:true,
-      sameSite:"none",
-      maxAge:1 * 60 * 1000,
+      // httpOnly:true,
+      // secure:true,
+      // sameSite:"none",
+      ...cookieOption,
+      maxAge:5*60*1000,
     });
     res.cookie("refreshtoken",refreshtoken,{
-      httpOnly:true,
-      secure:true,
-      sameSite:"none",
+      // httpOnly:true,
+      // secure:true,
+      // sameSite:"none",
+      ...cookieOption,
       maxAge:30 * 24 * 60 *60 *1000,
 
     });
@@ -126,14 +174,16 @@ app.post("/login", async (req, res) => {
     console.log(err);
     res.status(500).json({ message: "Server error" });
   }
+  
 });
 
 app.post("/refresh",async(req ,res )=>{
+  
 
   try{
       const refreshtoken= req.cookies.refreshtoken;
         if(!refreshtoken){
-          return res.status(402).json({message:"reftoken missing"});
+          return res.status(401).json({message:"reftoken missing"});
         }
 
       const decoded =jwt.verify(refreshtoken,process.env.REFRESHSECRET);
@@ -158,7 +208,7 @@ app.post("/refresh",async(req ,res )=>{
            tenantId:tenantId,
         },
         process.env.ACCESSSECRET,
-       {expiresIn:"1m"},
+       {expiresIn:"5m"},
 
        );
        const newrefreshtoken = jwt.sign(
@@ -177,20 +227,18 @@ app.post("/refresh",async(req ,res )=>{
        await user.save();
 
        res.cookie("refreshtoken",newrefreshtoken,{
-        httpOnly:true,
-        secure:true,
-        sameSite:"none",
+        // httpOnly:true,
+        // secure:true,
+        // sameSite:"none",
+        ...cookieOption,
         maxAge: 30*24*60*60*1000,
 });
 
      res.cookie("accesstoken",accesstoken,{
-          httpOnly:true,
+        
+        ...cookieOption,
 
-         secure:true,
-
-        sameSite:"none",
-
-        maxAge:1*60*1000,
+        maxAge:5*60*1000,
 
      });
      console.log("extend");
@@ -459,7 +507,7 @@ app.post("/", auth, check("superadmin", "admin"), async (req, res) => {
       expiredate: endate,
     });
 
-    await emp.save();
+    // await emp.save();
 
     const Payment = getPaymentModel(req.db);
      const payment = new Payment({
@@ -469,7 +517,11 @@ app.post("/", auth, check("superadmin", "admin"), async (req, res) => {
      });
      console.log(payment);
      try{
-       await payment.save();
+       await Promise.all([
+        emp.save(),
+        payment.save(),
+
+       ]) ;
       console.log("payment save ");
 
      }
@@ -711,6 +763,7 @@ app.post("/usrsearch", auth, async (req, res) => {
 
 /*CHANGE ROLE */
 app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
+  const start = Date.now();
   try {
     const { id } = req.params;
 
@@ -737,6 +790,9 @@ app.put("/change-role/:id", auth, check("superadmin"), async (req, res) => {
   } catch (err) {
     console.log(err);
     res.status(500).json({ message: "Server error" });
+  }
+  finally{
+    console.log(Date.now()-start,"ms");
   }
 });
 
@@ -858,13 +914,22 @@ app.get("/revenue", auth, check("superadmin"), async (req, res) => {
   }
 });
 
-app.post("/logout",auth ,(req , res)=>{
+app.post("/logout",auth ,async(req , res)=>{
+  
+  req.user.refreshtoken ="";
+   await req.user.save();
+
 try{
   res.clearCookie("accesstoken",{
-  httpOnly:true,
-  secure:false,
-  sameSite:"lax",
+  // httpOnly:true,
+  // secure:false,
+  // sameSite:"lax",
+  ...cookieOption
+  
 });
+res.clearCookie("refreshtoken",{
+  ...cookieOption,
+})
  return res.json({message:"logout successfully"});
 
 }
